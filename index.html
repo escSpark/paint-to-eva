@@ -137,7 +137,7 @@ function startAnim(){
 // ---------- UI ----------
 saveBtn.onclick=()=>{const link=document.createElement("a");link.download=(currentFile||"dibujo")+".png";link.href=cv.toDataURL("image/png");link.click();};
 function loadDrawing(file){
-  currentFile=file;if(file==="puntos.json")DELAY=50;else if(file==="eva.json")DELAY=2;else if(file==="espino.json")DELAY=2;else DELAY=280;
+  currentFile=file;if(file==="puntos.json")DELAY=50;else if(file==="eva.json")DELAY=2;else if(file==="espino.json")DELAY=1;else DELAY=280;
   fetch(file).then(r=>r.json()).then(data=>{regions=normalize(data);bgMask=detectBackgroundRegions(regions);startAnim();});
 }
 playBtn.onclick=()=>{music.play();playBtn.textContent="🎵 Reproduciendo...";playBtn.disabled=true;};
@@ -145,5 +145,6 @@ loadDrawing("puntos.json");
 </script>
 </body>
 </html>
+
 
 
