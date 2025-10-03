@@ -1,32 +1,36 @@
 <!doctype html>
 <html lang="es">
-<meta charset="utf-8" />
-<title>Dibujos animados</title>
-<style>
-  body{
-    margin:0;height:100vh;background:#000;color:#e9e9ee;font-family:sans-serif;
-    display:flex;align-items:center;justify-content:center;
-    flex-direction:column;
-  }
-  #container{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
-  canvas{
-    background:#000;display:block;border-radius:12px;
-    max-width:90vw;max-height:90vh;width:100%;height:auto;
-  }
-  #controls{display:flex;flex-direction:column;gap:15px;align-items:center}
-  button{
-    background:#ff4d6d;border:none;color:#fff;
-    padding:16px 32px;   /* más padding (doble tamaño) */
-    border-radius:10px;
-    cursor:pointer;font-size:20px;  /* letra más grande */
-    text-align:center;width:100%;
-  }
-  button:hover{background:#ff718a}
-  #dedicatoria{
-    margin-top:15px;font-size:18px;text-align:center;
-    color:#ff718a;font-family:'Georgia', serif;
-  }
-</style>
+<head>
+  <meta charset="utf-8" />
+  <title>Dibujos animados</title>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
+  <style>
+    body{
+      margin:0;height:100vh;background:#000;color:#e9e9ee;font-family:sans-serif;
+      display:flex;align-items:center;justify-content:center;
+      flex-direction:column;
+    }
+    #container{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+    canvas{
+      background:#000;display:block;border-radius:12px;
+      max-width:90vw;max-height:90vh;width:100%;height:auto;
+    }
+    #controls{display:flex;flex-direction:column;gap:15px;align-items:center}
+    button{
+      background:#ff4d6d;border:none;color:#fff;
+      padding:16px 32px;   /* más padding (doble tamaño) */
+      border-radius:10px;
+      cursor:pointer;font-size:20px;  /* letra más grande */
+      text-align:center;width:100%;
+    }
+    button:hover{background:#ff718a}
+    #dedicatoria{
+      margin-top:15px;font-size:28px;text-align:center;
+      color:#ff99b3;font-family:'Dancing Script', cursive;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.6);
+    }
+  </style>
+<head>
 <body>
 <div id="container">
   <canvas id="cv"></canvas>
@@ -141,3 +145,4 @@ loadDrawing("puntos.json");
 </script>
 </body>
 </html>
+
