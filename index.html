@@ -1,32 +1,35 @@
 <!doctype html>
 <html lang="es">
 <meta charset="utf-8" />
-<title>Dibujos animados <3 </title>
+<title>Dibujos animados</title>
 <style>
   body{
     margin:0;height:100vh;background:#000;color:#e9e9ee;font-family:sans-serif;
     display:flex;align-items:center;justify-content:center;
+    flex-direction:column;
   }
-  #container{display:flex;gap:20px;align-items:flex-start}
-  canvas{background:#000;display:block;border-radius:12px}
-  #controls{display:flex;flex-direction:column;gap:10px}
+  #container{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+  canvas{
+    background:#000;display:block;border-radius:12px;
+    max-width:90vw;max-height:90vh;width:100%;height:auto;
+  }
+  #controls{display:flex;flex-direction:column;gap:10px;align-items:center}
   button{
     background:#ff4d6d;border:none;color:#fff;padding:8px 16px;border-radius:8px;
-    cursor:pointer;font-size:14px;text-align:left
+    cursor:pointer;font-size:14px;text-align:center;width:100%;
   }
   button:hover{background:#ff718a}
   #dedicatoria{
-    position:fixed;bottom:10px;width:100%;text-align:center;font-size:18px;
-    color:#ff718a;font-family:'Georgia', serif
+    margin-top:15px;font-size:16px;text-align:center;color:#ff718a;font-family:'Georgia', serif;
   }
 </style>
 <body>
 <div id="container">
-  <canvas id="cv" width="800" height="800"></canvas>
+  <canvas id="cv"></canvas>
   <div id="controls">
     <button id="savePng">🖼 Descargar PNG</button>
     <button onclick="loadDrawing('puntos.json')">🌹 Rosa</button>
-    <button onclick="loadDrawing('eva.json')">✨ Retrato</button>
+    <button onclick="loadDrawing('eva2.json')">✨ Retrato</button>
     <button onclick="loadDrawing('espino.json')">🦖 Dino</button>
     <button id="playMusic">▶ Reproducir música</button>
   </div>
@@ -39,12 +42,10 @@
 </audio>
 
 <script>
-const CANVAS_SIZE = 800;
-let DELAY = 150;                      // se ajusta por dibujo en loadDrawing
+let DELAY = 150;
 const START_ANGLE = -90 * Math.PI/180;
 const END_ANGLE   = 0;
 const BG = "#000";
-const BG_COVERAGE_MIN = 0.6;          // % de bbox para considerar fondo (si región más grande < esto, no marcamos fondo)
 
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
@@ -52,191 +53,82 @@ const saveBtn = document.getElementById("savePng");
 const music = document.getElementById("bgmusic");
 const playBtn = document.getElementById("playMusic");
 
-let regions = null;
-let currentFile = "";
-let bgMask = []; // booleano por región: true = región de fondo
+let regions=null, currentFile="", bgMask=[], bgColorHex=null;
+let CANVAS_SIZE=800; // base, se actualizará con resize
 
-// ---------- utilidades de color / geometría ----------
-function toHex(c){
-  if(typeof c==="string") return c;
+// -------- utilidades de resize --------
+function resizeCanvas(){
+  const size = Math.min(window.innerWidth*0.9, window.innerHeight*0.7);
+  CANVAS_SIZE = Math.max(200, Math.floor(size));
+  cv.width = CANVAS_SIZE;
+  cv.height = CANVAS_SIZE;
+}
+window.addEventListener("resize", ()=>{ 
+  resizeCanvas(); 
+  if(regions) startAnim(); 
+});
+resizeCanvas();
+
+// ---------- funciones auxiliares (las que ya tenías) ----------
+function toHex(c){ if(typeof c==="string") return c;
   return `#${c[0].toString(16).padStart(2,'0')}${c[1].toString(16).padStart(2,'0')}${c[2].toString(16).padStart(2,'0')}`;
 }
-function hexToRGB(hex){
-  if (hex.startsWith('#')) hex = hex.slice(1);
-  if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('');
-  const r = parseInt(hex.slice(0,2),16);
-  const g = parseInt(hex.slice(2,4),16);
-  const b = parseInt(hex.slice(4,6),16);
-  return [r,g,b];
+function hexToRGB(hex){ if(hex.startsWith('#')) hex=hex.slice(1);
+  if(hex.length===3) hex=hex.split('').map(c=>c+c).join('');
+  return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
 }
-function luminance(hex){
-  const [r,g,b] = hexToRGB(hex);
-  return 0.2126*r + 0.7152*g + 0.0722*b; // 0..255
+function luminance(hex){ const [r,g,b]=hexToRGB(hex); return 0.2126*r+0.7152*g+0.0722*b; }
+function colorDist(aHex,bHex){ const [ar,ag,ab]=hexToRGB(aHex), [br,bg,bb]=hexToRGB(bHex);
+  return Math.sqrt((ar-br)**2+(ag-bg)**2+(ab-bb)**2);
 }
-function bbox(regs){
-  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
-  regs.forEach(r=>r.contour.forEach(([x,y])=>{
-    if(x<minx)minx=x;if(y<miny)miny=y;
-    if(x>maxx)maxx=x;if(y>maxy)maxy=y;
-  }));
+function bbox(regs){ let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  regs.forEach(r=>r.contour.forEach(([x,y])=>{if(x<minx)minx=x;if(y<miny)miny=y;if(x>maxx)maxx=x;if(y>maxy)maxy=y;}));
   return {minx,miny,maxx,maxy};
 }
-function areaPoly(contour){
-  let a=0;
-  for(let i=0;i<contour.length;i++){
-    const [x1,y1]=contour[i];
-    const [x2,y2]=contour[(i+1)%contour.length];
-    a+=x1*y2-x2*y1;
-  }
-  return Math.abs(a/2);
-}
-function regionBBox(contour){
-  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
-  for (const [x,y] of contour){
-    if(x<minx)minx=x; if(y<miny)miny=y;
-    if(x>maxx)maxx=x; if(y>maxy)maxy=y;
-  }
-  return {minx,miny,maxx,maxy};
-}
-function touchesBorder(rb, gb, tol=1e-6){
-  return (
-    Math.abs(rb.minx - gb.minx) < tol ||
-    Math.abs(rb.maxx - gb.maxx) < tol ||
-    Math.abs(rb.miny - gb.miny) < tol ||
-    Math.abs(rb.maxy - gb.maxy) < tol
-  );
-}
-function transformPts(pts,cx,cy,scale,ang){
-  const ca=Math.cos(ang), sa=Math.sin(ang);
-  return pts.map(([x,y])=>{
-    const tx=(x-cx)*scale;
-    const ty=(cy-y)*scale;           // invertimos eje Y para canvas
-    return [tx*ca - ty*sa, tx*sa + ty*ca];
-  });
-}
-function drawPoly(pts, fill){
-  ctx.fillStyle = fill;
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0]+CANVAS_SIZE/2, pts[0][1]+CANVAS_SIZE/2);
-  for(let i=1;i<pts.length;i++)
-    ctx.lineTo(pts[i][0]+CANVAS_SIZE/2, pts[i][1]+CANVAS_SIZE/2);
-  ctx.closePath();
-  ctx.fill();
-}
-function normalize(data){
-  const list = Array.isArray(data)?data:data.regions;
-  return list.map(r=>({
-    contour: r.contour || r.points,
-    fill: toHex(r.fill||"#ff4d6d"),
-    stroke: toHex(r.stroke||r.fill||"#ff4d6d"),
-    sw: (r.stroke_width!=null)?+r.stroke_width:1
-  })).filter(r=>r.contour && r.contour.length>=3);
-}
+function areaPoly(c){ let a=0; for(let i=0;i<c.length;i++){const[x1,y1]=c[i],[x2,y2]=c[(i+1)%c.length];a+=x1*y2-x2*y1;} return Math.abs(a/2);}
+function regionBBox(c){ let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9; for(const[x,y] of c){if(x<minx)minx=x;if(y<miny)miny=y;if(x>maxx)maxx=x;if(y>maxy)maxy=y;} return{minx,miny,maxx,maxy};}
+function touchesBorder(rb,gb,tol=1e-6){return Math.abs(rb.minx-gb.minx)<tol||Math.abs(rb.maxx-gb.maxx)<tol||Math.abs(rb.miny-gb.miny)<tol||Math.abs(rb.maxy-gb.maxy)<tol;}
+function transformPts(pts,cx,cy,scale,ang){const ca=Math.cos(ang),sa=Math.sin(ang);return pts.map(([x,y])=>{const tx=(x-cx)*scale,ty=(cy-y)*scale;return[tx*ca-ty*sa,tx*sa+ty*ca];});}
+function drawPoly(pts,fill){ctx.fillStyle=fill;ctx.beginPath();ctx.moveTo(pts[0][0]+CANVAS_SIZE/2,pts[0][1]+CANVAS_SIZE/2);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0]+CANVAS_SIZE/2,pts[i][1]+CANVAS_SIZE/2);ctx.closePath();ctx.fill();}
+function normalize(data){const list=Array.isArray(data)?data:data.regions;return list.map(r=>({contour:r.contour||r.points,fill:toHex(r.fill||"#ff4d6d")})).filter(r=>r.contour&&r.contour.length>=3);}
 
-// ---------- detección robusta de fondo ----------
+// ---------- fondo ----------
+const COLOR_TOL=40;
 function detectBackgroundRegions(regs){
-  const globalBox = bbox(regs);
-  const bboxArea  = Math.max(1, (globalBox.maxx - globalBox.minx) * (globalBox.maxy - globalBox.miny));
-  const areas     = regs.map(r => areaPoly(r.contour));
-  const maxArea   = Math.max(...areas);
-
-  const AREA_FRAC_MIN   = 0.15; // 15% del bbox ya se considera grande
-  const DARK_LUMA_THRES = 40;   // 0..255 (muy oscuro)
-  const NEAR_MAX_FACTOR = 0.95; // por si hay 1-2 regiones muy grandes
-
-  // Si ni la mayor llega al umbral, no marcamos fondo (evita falsos positivos).
-  if (maxArea / bboxArea < BG_COVERAGE_MIN) {
-    return regs.map(() => false);
-  }
-
-  return regs.map((r,i) => {
-    const rb = regionBBox(r.contour);
-    const touch = touchesBorder(rb, globalBox, 1e-6);
-    const areaFrac = areas[i] / bboxArea;
-    const isLarge  = areaFrac >= AREA_FRAC_MIN || areas[i] >= maxArea * NEAR_MAX_FACTOR;
-    const isDark   = luminance(toHex(r.fill)) <= DARK_LUMA_THRES;
-    return touch && (isLarge || isDark);
-  });
+  const gb=bbox(regs);const areas=regs.map(r=>areaPoly(r.contour));const maxArea=Math.max(...areas);
+  bgColorHex=toHex(regs[areas.indexOf(maxArea)].fill); // color mayor área
+  return regs.map((r,i)=>{const rb=regionBBox(r.contour);const touch=touchesBorder(rb,gb,1e-6);
+    const isBig=areas[i]>=maxArea*0.9;const isDark=luminance(toHex(r.fill))<40;
+    return touch&&(isBig||isDark||colorDist(toHex(r.fill),bgColorHex)<COLOR_TOL);});
 }
 
 // ---------- animación ----------
 function startAnim(){
   const {minx,miny,maxx,maxy}=bbox(regions);
-  const margin=100;
+  const margin=50;
   const scale=Math.min((CANVAS_SIZE-margin*2)/(maxx-minx),(CANVAS_SIZE-margin*2)/(maxy-miny));
-  const cx=(minx+maxx)/2, cy=(miny+maxy)/2;
+  const cx=(minx+maxx)/2,cy=(miny+maxy)/2;
   const start=performance.now();
-
   function frame(ts){
-    ctx.fillStyle=BG;
-    ctx.fillRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-
-    const elapsed=ts-start;
-    const total=regions.length*DELAY;
-    const prog=Math.min(1,elapsed/total);
-
-    // Sin giro para retrato/dino; giro parcial para el resto
-    let ang = 0;
-    if(currentFile !== "eva.json" && currentFile !== "espino.json"){
-      const smooth = prog*prog*(3-2*prog); // smoothstep
-      ang = START_ANGLE+(END_ANGLE-START_ANGLE)*smooth;
-    }
-
+    ctx.fillStyle=BG;ctx.fillRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+    const elapsed=ts-start,total=regions.length*DELAY,prog=Math.min(1,elapsed/total);
+    let ang=0;if(currentFile!=="eva2.json"&&currentFile!=="espino.json"){const s=prog*prog*(3-2*prog);ang=START_ANGLE+(END_ANGLE-START_ANGLE)*s;}
     const show=Math.min(regions.length,Math.floor(elapsed/DELAY)+1);
-
-    for(let i=0;i<show;i++){
-      const r=regions[i];
-      const pts=transformPts(r.contour,cx,cy,scale,ang);
-
-      // Si es retrato/dino y esta región es de fondo -> negro puro
-      const forceBlackBG = (currentFile === "eva.json" || currentFile === "espino.json") && bgMask[i];
-      const fillColor = forceBlackBG ? "#000" : r.fill;
-
-      drawPoly(pts, fillColor);
-    }
+    for(let i=0;i<show;i++){const r=regions[i];const pts=transformPts(r.contour,cx,cy,scale,ang);
+      let fill=r.fill;if((currentFile==="eva2.json"||currentFile==="espino.json")&&bgMask[i])fill="#000";
+      drawPoly(pts,fill);}
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 }
 
 // ---------- UI ----------
-saveBtn.onclick=()=>{
-  const link=document.createElement("a");
-  const base = (currentFile.replace('.json','') || "dibujo");
-  link.download = base + ".png";
-  link.href=cv.toDataURL("image/png");
-  link.click();
-};
-
+saveBtn.onclick=()=>{const link=document.createElement("a");link.download=(currentFile||"dibujo")+".png";link.href=cv.toDataURL("image/png");link.click();};
 function loadDrawing(file){
-  currentFile = file;
-  if(file === "puntos.json") DELAY = 50;
-  else if(file === "eva.json") DELAY = 2;
-  else if(file === "espino.json") DELAY = 0.5;
-  else DELAY = 280;
-
-  fetch(file).then(r=>r.json()).then(data=>{
-    regions = normalize(data);
-    bgMask  = detectBackgroundRegions(regions); // recalcular máscara de fondo
-    startAnim();
-  }).catch(err=>{
-    ctx.fillStyle="#fff";
-    ctx.font="20px sans-serif";
-    ctx.fillText("❌ No se pudo cargar "+file, 50, 50);
-    console.error(err);
-  });
+  currentFile=file;if(file==="puntos.json")DELAY=50;else if(file==="eva2.json")DELAY=2;else if(file==="espino.json")DELAY=2;else DELAY=280;
+  fetch(file).then(r=>r.json()).then(data=>{regions=normalize(data);bgMask=detectBackgroundRegions(regions);startAnim();});
 }
-
-playBtn.onclick=()=>{
-  music.play().then(()=>{
-    playBtn.textContent="🎵 Reproduciendo...";
-    playBtn.disabled=true;
-  }).catch(err=>{
-    alert("No se pudo iniciar la música: " + err);
-  });
-};
-
-// Carga inicial
+playBtn.onclick=()=>{music.play();playBtn.textContent="🎵 Reproduciendo...";playBtn.disabled=true;};
 loadDrawing("puntos.json");
 </script>
 </body>
