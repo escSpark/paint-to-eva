@@ -13,14 +13,18 @@
     background:#000;display:block;border-radius:12px;
     max-width:90vw;max-height:90vh;width:100%;height:auto;
   }
-  #controls{display:flex;flex-direction:column;gap:10px;align-items:center}
+  #controls{display:flex;flex-direction:column;gap:15px;align-items:center}
   button{
-    background:#ff4d6d;border:none;color:#fff;padding:8px 16px;border-radius:8px;
-    cursor:pointer;font-size:14px;text-align:center;width:100%;
+    background:#ff4d6d;border:none;color:#fff;
+    padding:16px 32px;   /* más padding (doble tamaño) */
+    border-radius:10px;
+    cursor:pointer;font-size:20px;  /* letra más grande */
+    text-align:center;width:100%;
   }
   button:hover{background:#ff718a}
   #dedicatoria{
-    margin-top:15px;font-size:16px;text-align:center;color:#ff718a;font-family:'Georgia', serif;
+    margin-top:15px;font-size:18px;text-align:center;
+    color:#ff718a;font-family:'Georgia', serif;
   }
 </style>
 <body>
@@ -46,6 +50,7 @@ let DELAY = 150;
 const START_ANGLE = -90 * Math.PI/180;
 const END_ANGLE   = 0;
 const BG = "#000";
+const scaleFactor = 1.2;  // ✅ ampliamos el dibujo un 20%
 
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
@@ -54,9 +59,9 @@ const music = document.getElementById("bgmusic");
 const playBtn = document.getElementById("playMusic");
 
 let regions=null, currentFile="", bgMask=[], bgColorHex=null;
-let CANVAS_SIZE=800; // base, se actualizará con resize
+let CANVAS_SIZE=800;
 
-// -------- utilidades de resize --------
+// -------- resize dinámico --------
 function resizeCanvas(){
   const size = Math.min(window.innerWidth*0.9, window.innerHeight*0.7);
   CANVAS_SIZE = Math.max(200, Math.floor(size));
@@ -69,7 +74,7 @@ window.addEventListener("resize", ()=>{
 });
 resizeCanvas();
 
-// ---------- funciones auxiliares (las que ya tenías) ----------
+// ---------- utilidades ----------
 function toHex(c){ if(typeof c==="string") return c;
   return `#${c[0].toString(16).padStart(2,'0')}${c[1].toString(16).padStart(2,'0')}${c[2].toString(16).padStart(2,'0')}`;
 }
@@ -96,7 +101,7 @@ function normalize(data){const list=Array.isArray(data)?data:data.regions;return
 const COLOR_TOL=40;
 function detectBackgroundRegions(regs){
   const gb=bbox(regs);const areas=regs.map(r=>areaPoly(r.contour));const maxArea=Math.max(...areas);
-  bgColorHex=toHex(regs[areas.indexOf(maxArea)].fill); // color mayor área
+  bgColorHex=toHex(regs[areas.indexOf(maxArea)].fill);
   return regs.map((r,i)=>{const rb=regionBBox(r.contour);const touch=touchesBorder(rb,gb,1e-6);
     const isBig=areas[i]>=maxArea*0.9;const isDark=luminance(toHex(r.fill))<40;
     return touch&&(isBig||isDark||colorDist(toHex(r.fill),bgColorHex)<COLOR_TOL);});
@@ -105,8 +110,11 @@ function detectBackgroundRegions(regs){
 // ---------- animación ----------
 function startAnim(){
   const {minx,miny,maxx,maxy}=bbox(regions);
-  const margin=50;
-  const scale=Math.min((CANVAS_SIZE-margin*2)/(maxx-minx),(CANVAS_SIZE-margin*2)/(maxy-miny));
+  const margin=10;
+  const scale=scaleFactor*Math.min(
+    (CANVAS_SIZE-margin*2)/(maxx-minx),
+    (CANVAS_SIZE-margin*2)/(maxy-miny)
+  );
   const cx=(minx+maxx)/2,cy=(miny+maxy)/2;
   const start=performance.now();
   function frame(ts){
@@ -133,4 +141,3 @@ loadDrawing("puntos.json");
 </script>
 </body>
 </html>
-
