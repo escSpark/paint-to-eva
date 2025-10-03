@@ -29,7 +29,7 @@
   <div id="controls">
     <button id="savePng">🖼 Descargar PNG</button>
     <button onclick="loadDrawing('puntos.json')">🌹 Rosa</button>
-    <button onclick="loadDrawing('eva2.json')">✨ Retrato</button>
+    <button onclick="loadDrawing('eva.json')">✨ Retrato</button>
     <button onclick="loadDrawing('espino.json')">🦖 Dino</button>
     <button id="playMusic">▶ Reproducir música</button>
   </div>
@@ -112,10 +112,10 @@ function startAnim(){
   function frame(ts){
     ctx.fillStyle=BG;ctx.fillRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
     const elapsed=ts-start,total=regions.length*DELAY,prog=Math.min(1,elapsed/total);
-    let ang=0;if(currentFile!=="eva2.json"&&currentFile!=="espino.json"){const s=prog*prog*(3-2*prog);ang=START_ANGLE+(END_ANGLE-START_ANGLE)*s;}
+    let ang=0;if(currentFile!=="eva.json"&&currentFile!=="espino.json"){const s=prog*prog*(3-2*prog);ang=START_ANGLE+(END_ANGLE-START_ANGLE)*s;}
     const show=Math.min(regions.length,Math.floor(elapsed/DELAY)+1);
     for(let i=0;i<show;i++){const r=regions[i];const pts=transformPts(r.contour,cx,cy,scale,ang);
-      let fill=r.fill;if((currentFile==="eva2.json"||currentFile==="espino.json")&&bgMask[i])fill="#000";
+      let fill=r.fill;if((currentFile==="eva.json"||currentFile==="espino.json")&&bgMask[i])fill="#000";
       drawPoly(pts,fill);}
     requestAnimationFrame(frame);
   }
@@ -125,7 +125,7 @@ function startAnim(){
 // ---------- UI ----------
 saveBtn.onclick=()=>{const link=document.createElement("a");link.download=(currentFile||"dibujo")+".png";link.href=cv.toDataURL("image/png");link.click();};
 function loadDrawing(file){
-  currentFile=file;if(file==="puntos.json")DELAY=50;else if(file==="eva2.json")DELAY=2;else if(file==="espino.json")DELAY=2;else DELAY=280;
+  currentFile=file;if(file==="puntos.json")DELAY=50;else if(file==="eva.json")DELAY=2;else if(file==="espino.json")DELAY=2;else DELAY=280;
   fetch(file).then(r=>r.json()).then(data=>{regions=normalize(data);bgMask=detectBackgroundRegions(regions);startAnim();});
 }
 playBtn.onclick=()=>{music.play();playBtn.textContent="🎵 Reproduciendo...";playBtn.disabled=true;};
@@ -133,3 +133,4 @@ loadDrawing("puntos.json");
 </script>
 </body>
 </html>
+
